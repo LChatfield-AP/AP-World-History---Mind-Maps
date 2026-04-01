@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Improved Full Interactive Mind Map v2</title>
+<style>
+  :root {
+    --bg: #08111a;
+    --panel: #0f1a24;
+    --panel2: #132433;
+    --text: #edf3f9;
+    --muted: #9fb4c3;
+    --line: rgba(125, 211, 252, .35);
+    --lineActive: #8ef0e2;
+    --root: #5c678e;
+    --d1: #4b587d;
+    --d2: #35584d;
+    --d3: #44715d;
+    --stroke: rgba(255,255,255,.12);
+    --accent: #7dd3fc;
+    --gold: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(125,211,252,.08), transparent 24%),
+      radial-gradient(circle at bottom right, rgba(142,240,226,.05), transparent 28%),
+      var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 340px 1fr 380px;
+    height: 100vh;
+  }
+  .panel {
+    background: rgba(15,26,36,.96);
+    border-right: 1px solid rgba(255,255,255,.08);
+    padding: 18px;
+    overflow: auto;
+    backdrop-filter: blur(8px);
+  }
+  .panel:last-child {
+    border-right: none;
+    border-left: 1px solid rgba(255,255,255,.08);
+  }
+  h1 { margin: 0 0 8px; font-size: 1.2rem; line-height: 1.25; }
+  h2 { margin: 0 0 10px; font-size: 1.03rem; line-height: 1.3; }
+  p {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: .96rem;
+    line-height: 1.5;
+  }
+  .search, .select {
+    width: 100%;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px;
+    padding: 11px 13px;
+    outline: none;
+    font-size: .96rem;
+    margin-bottom: 10px;
+  }
+  .btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  button {
+    background: linear-gradient(180deg, #1a2c3d, #132433);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    padding: 11px 12px;
+    cursor: pointer;
+    font-size: .94rem;
+  }
+  .box {
+    margin-top: 12px;
+    padding: 13px;
+    border-radius: 12px;
+    background: rgba(19,36,51,.92);
+    border: 1px solid rgba(255,255,255,.08);
+    color: var(--muted);
+    font-size: .93rem;
+    line-height: 1.5;
+  }
+  .chip {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(125,211,252,.12);
+    border: 1px solid rgba(125,211,252,.22);
+    color: #d8eeff;
+    font-size: .84rem;
+  }
+  .canvas-wrap {
+    position: relative;
+    overflow: hidden;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  svg.dragging { cursor: grabbing; }
+  .link {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 2.8;
+    stroke-linecap: round;
+  }
+  .link.active {
+    stroke: var(--lineActive);
+    stroke-width: 3.6;
+  }
+  .node-group { cursor: pointer; }
+  .node-box {
+    stroke: var(--stroke);
+    stroke-width: 1.2;
+    rx: 14;
+    ry: 14;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,.24));
+  }
+  .depth-0 .node-box { fill: var(--root); }
+  .depth-1 .node-box { fill: var(--d1); }
+  .depth-2 .node-box { fill: var(--d2); }
+  .depth-3 .node-box, .depth-4 .node-box, .depth-5 .node-box { fill: var(--d3); }
+  .node-label {
+    fill: white;
+    font-size: 18px;
+    font-weight: 600;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .toggle {
+    fill: rgba(255,255,255,.14);
+    stroke: rgba(255,255,255,.22);
+    stroke-width: 1;
+    pointer-events: none;
+  }
+  .toggle-mark {
+    stroke: white;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  .node-group.selected .node-box {
+    stroke: var(--accent);
+    stroke-width: 2.8;
+  }
+  .node-group.match .node-box {
+    stroke: var(--gold);
+    stroke-width: 2.4;
+  }
+  .status {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    background: rgba(8,14,20,.82);
+    border: 1px solid rgba(255,255,255,.08);
+    color: var(--muted);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: .9rem;
+    backdrop-filter: blur(8px);
+  }
+  .path {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: .9rem;
+    line-height: 1.5;
+  }
+  .meta-block {
+    background: rgba(19,36,51,.92);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 13px;
+    margin-bottom: 10px;
+  }
+  .meta-label {
+    font-weight: 700;
+    color: #d7e9f8;
+    margin-bottom: 6px;
+    font-size: .95rem;
+  }
+  .meta-value {
+    color: var(--text);
+    line-height: 1.5;
+    font-size: .98rem;
+  }
+  @media (max-width: 1280px) {
+    .app {
+      grid-template-columns: 320px 1fr;
+      grid-template-rows: 1fr 300px;
+    }
+    .panel:last-child {
+      grid-column: 1 / span 2;
+      border-left: none;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>Improved full interactive mind map</h1>
+    <p>Full dataset rebuilt with original text size, moderately larger elements, and more zoom range.</p>
+
+    <select id="chapterFilter" class="select">
+      <option value="all">All chapters</option>
+    </select>
+
+    <input id="search" class="search" type="text" placeholder="Search terms, topics, or metadata..." />
+
+    <div class="btn-grid">
+      <button id="expandAll">Expand all</button>
+      <button id="collapseAll">Collapse all</button>
+    </div>
+    <div class="btn-grid">
+      <button id="centerView">Center view</button>
+      <button id="clearSearch">Clear search</button>
+    </div>
+
+    <div class="box">
+      Drag to pan. Use the mouse wheel or trackpad to zoom. Click a node to select it and toggle its children.
+      <div id="matchCount" class="chip">0 matches</div>
+    </div>
+  </aside>
+
+  <main class="canvas-wrap">
+    <svg id="mindmap" viewBox="0 0 6200 5000" aria-label="Interactive history mind map">
+      <g id="viewport">
+        <g id="links"></g>
+        <g id="nodes"></g>
+      </g>
+    </svg>
+    <div class="status">Balanced sizing + more zoom range</div>
+  </main>
+
+  <aside class="panel">
+    <h2 id="detailsTitle">Nothing selected</h2>
+    <div class="path" id="detailsPath">Select a node to see its explanation and metadata.</div>
+    <div id="detailsBody">
+      <div class="meta-block">
+        <div class="meta-label">Ready</div>
+        <div class="meta-value">This version keeps the original text size but enlarges the map more carefully.</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const fullData = {"name": "History Outline", "children": [{"name": "Part 1: Diversity and Interaction (1200–1450)", "children": [{"name": "Chapter 1: Before 1200 — Master Outline with Definitions", "children": [{"name": "From Paleolithic to Agriculture", "children": [{"name": "Paleolithic Era", "children": [{"name": "Gathering and hunting", "meta": ["Explanation: A subsistence strategy based on foraging wild plants and hunting animals, supporting small, mobile human groups prior to agriculture.", "P: early Homo sapiens", "E: human migration out of Africa", "D: c. 200,000–10,000 BCE", "I: subsistence economy; adaptation to environment", "T: stone tools; spears; fire"], "id": 6, "depth": 5, "collapsed": true}, {"name": "Small-scale bands", "meta": ["Explanation: Basic social units of Paleolithic societies, typically consisting of a few dozen people organized by kinship with relatively egalitarian structures.", "P: kinship groups", "E: formation of early human communities", "D: Paleolithic era", "I: egalitarianism; shared resources", "T: temporary shelters"], "id": 7, "depth": 5, "collapsed": true}, {"name": "Global migration", "meta": ["Explanation: The gradual spread of Homo sapiens out of Africa to populate all major regions of the world during the Paleolithic era.", "P: Homo sapiens", "E: migration to Eurasia, Americas", "D: c. 70,000–15,000 BCE", "I: adaptation; survival strategies", "T: land bridges (Beringia)"], "id": 8, "depth": 5, "collapsed": true}], "id": 5, "depth": 4, "collapsed": true}, {"name": "Agricultural Revolution", "children": [{"name": "Neolithic Revolution", "meta": ["Explanation: The transition from foraging to farming that began around 10,000 years ago, leading to permanent settlements and new social structures.", "P: early farmers", "E: development of agriculture", "D: c. 10,000 BCE", "I: domestication; sedentism", "T: farming tools"], "id": 10, "depth": 5, "collapsed": true}, {"name": "Deliberate cultivation", "meta": ["Explanation: The intentional planting and harvesting of crops, marking a shift from reliance on naturally occurring food sources.", "P: Neolithic farmers", "E: early crop production", "D: Neolithic period", "I: planned agriculture", "T: seeds; irrigation beginnings"], "id": 11, "depth": 5, "collapsed": true}, {"name": "Domestication of animals", "meta": ["Explanation: The process of selectively breeding and managing animals for human use, including food, labor, and materials.", "P: herders", "E: animal domestication", "D: Neolithic era", "I: human control over nature", "T: cattle; sheep; goats"], "id": 12, "depth": 5, "collapsed": true}, {"name": "Settled villages", "meta": ["Explanation: Permanent communities that emerged as agriculture allowed people to remain in one place and build stable societies.", "P: village populations", "E: formation of early settlements", "D: post-10,000 BCE", "I: permanence; community organization", "T: mud-brick homes"], "id": 13, "depth": 5, "collapsed": true}], "id": 9, "depth": 4, "collapsed": true}, {"name": "Social Organizations", "children": [{"name": "Pastoral societies", "meta": ["Explanation: Communities that rely primarily on domesticated herd animals for subsistence, often maintaining a nomadic or semi-nomadic lifestyle.", "P: nomadic herders", "E: seasonal migrations", "D: post-Neolithic", "I: mobility; animal-based economy", "T: herds (horses, camels)"], "id": 15, "depth": 5, "collapsed": true}, {"name": "Village-based societies", "meta": ["Explanation: Agricultural communities organized around small settlements, often with shared resources and limited social hierarchy.", "P: farmers", "E: village cooperation", "D: early agrarian period", "I: communal life", "T: farming plots"], "id": 16, "depth": 5, "collapsed": true}, {"name": "Chiefdoms", "meta": ["Explanation: Societies led by a central authority (a chief), featuring ranked social structures but not yet full state-level political organization.", "P: chiefs", "E: rise of leadership hierarchy", "D: pre-state societies", "I: social ranking", "T: tribute goods"], "id": 17, "depth": 5, "collapsed": true}], "id": 14, "depth": 4, "collapsed": true}], "id": 4, "depth": 3, "collapsed": true}, {"name": "Civilizations", "children": [{"name": "Defining Features", "children": [{"name": "Cities and states", "meta": ["Explanation: Large, densely populated settlements with organized governments that exercise authority over surrounding territories.", "P: rulers; elites", "E: rise of early states", "D: c. 3000 BCE onward", "I: governance; centralization", "T: urban infrastructure"], "id": 20, "depth": 5, "collapsed": true}, {"name": "Occupational specialization", "meta": ["Explanation: The division of labor in which individuals focus on specific economic roles beyond food production, such as artisans or merchants.", "P: artisans; merchants", "E: development of trade economies", "D: early civilizations", "I: division of labor", "T: tools; goods"], "id": 21, "depth": 5, "collapsed": true}, {"name": "Social hierarchies", "meta": ["Explanation: Structured rankings within society based on wealth, power, or status, often becoming more rigid over time.", "P: elites; peasants", "E: stratification of society", "D: early civilizations", "I: inequality", "T: luxury goods"], "id": 22, "depth": 5, "collapsed": true}, {"name": "Patriarchy", "meta": ["Explanation: A social system in which men hold primary authority in political, economic, and family life.", "P: male household heads", "E: institutionalization of gender roles", "D: early civilizations onward", "I: gender hierarchy", "T: legal codes"], "id": 23, "depth": 5, "collapsed": true}], "id": 19, "depth": 4, "collapsed": true}, {"name": "Environment", "children": [{"name": "River valley foundations", "meta": ["Explanation: The development of early civilizations along fertile river systems that supported agriculture through reliable water sources.", "P: early farmers", "E: rise of river valley civilizations", "D: c. 3000 BCE", "I: environmental determinism", "T: rivers (Nile, Tigris, Euphrates)"], "id": 25, "depth": 5, "collapsed": true}, {"name": "Impact of irrigation", "meta": ["Explanation: The use of controlled water systems to increase agricultural productivity, often requiring coordinated labor and governance.", "P: laborers; rulers", "E: irrigation projects", "D: early civilizations", "I: state control; cooperation", "T: canals; dikes"], "id": 26, "depth": 5, "collapsed": true}, {"name": "Deforestation and erosion", "meta": ["Explanation: Environmental consequences of early agriculture and settlement, including soil degradation and loss of natural vegetation.", "P: farming communities", "E: expansion of agriculture", "D: early agrarian societies", "I: environmental impact", "T: cleared land"], "id": 27, "depth": 5, "collapsed": true}], "id": 24, "depth": 4, "collapsed": true}, {"name": "Major Empires", "children": [{"name": "Roman Empire", "meta": ["Explanation: A large Mediterranean-based state known for centralized governance, extensive infrastructure, and cultural integration across diverse regions.", "P: Roman emperors", "E: expansion of Rome", "D: 27 BCE–476 CE", "I: imperial governance", "T: roads; aqueducts"], "id": 29, "depth": 5, "collapsed": true}, {"name": "Chinese civilizations", "meta": ["Explanation: Successive dynasties in East Asia characterized by bureaucratic governance, Confucian ideology, and long-term political continuity.", "P: emperors; scholar-officials", "E: dynastic cycles", "D: Qin → Han → onward", "I: Confucian bureaucracy", "T: civil service exams"], "id": 30, "depth": 5, "collapsed": true}, {"name": "Indian Caste System", "meta": ["Explanation: A hierarchical social structure in South Asia that organized society into hereditary groups with specific roles and restrictions.", "P: Brahmins; Kshatriyas", "E: development of caste divisions", "D: ancient → ongoing", "I: social stratification", "T: caste categories"], "id": 31, "depth": 5, "collapsed": true}], "id": 28, "depth": 4, "collapsed": true}], "id": 18, "depth": 3, "collapsed": true}, {"name": "Cultural Traditions", "children": [{"name": "South Asian", "children": [{"name": "Hinduism: Upanishads and Bhakti", "meta": ["Explanation: A diverse religious tradition emphasizing spiritual concepts such as dharma and karma, with later devotional movements (Bhakti) stressing personal worship.", "P: Hindu practitioners", "E: Bhakti movement", "D: c. 500 BCE → later", "I: dharma; karma; devotion", "T: Upanishads"], "id": 34, "depth": 5, "collapsed": true}, {"name": "Buddhism: Theravada and Mahayana", "meta": ["Explanation: A religious tradition founded by Siddhartha Gautama, with Theravada focusing on individual enlightenment and Mahayana emphasizing collective salvation.", "P: Siddhartha Gautama", "E: spread of Buddhism", "D: c. 5th century BCE onward", "I: enlightenment; nirvana", "T: sutras"], "id": 35, "depth": 5, "collapsed": true}], "id": 33, "depth": 4, "collapsed": true}, {"name": "Chinese", "children": [{"name": "Confucianism: Moral behavior", "meta": ["Explanation: A philosophical system emphasizing ethical conduct, social harmony, and respect for hierarchy and family roles.", "People: Confucius; Zhu Xi", "Events: Song Dynasty civil service expansion (960–1279)", "Dates: ca. 500 BCE (Confucius); 12th century (Neo-Confucian revival)", "Ideas: Filial piety; Five Relationships; Neo-Confucianism", "Things: Civil service exams; Analects"], "id": 37, "depth": 5, "collapsed": true}, {"name": "Daoism: Way of nature", "meta": ["Explanation: A philosophical and religious tradition advocating harmony with the natural world and the balance of opposing forces (yin and yang).", "People: Laozi; Zhuangzi", "Events: Spread of Daoist religious practices during Han Dynasty", "Dates: ca. 6th century BCE", "Ideas: Yin and yang; Wu wei (non-action)", "Things: Dao De Jing; Daoist temples"], "id": 38, "depth": 5, "collapsed": true}], "id": 36, "depth": 4, "collapsed": true}, {"name": "Middle Eastern", "children": [{"name": "Judaism: Monotheism", "meta": ["Explanation: A religious tradition centered on the belief in a single, all-powerful God and a covenant with a chosen people.", "People: Abraham; Moses", "Events: Babylonian Exile (586 BCE)", "Dates: ca. 1200 BCE (early Hebrew traditions)", "Ideas: Covenant; ethical monotheism", "Things: Torah"], "id": 40, "depth": 5, "collapsed": true}, {"name": "Christianity: Universal message", "meta": ["Explanation: A monotheistic religion based on the teachings of Jesus, emphasizing salvation and a message intended for all humanity.", "People: Jesus of Nazareth; Paul of Tarsus", "Events: Edict of Milan (313 CE); Council of Nicaea (325 CE)", "Dates: 1st century CE", "Ideas: Salvation; Trinity", "Things: Bible; churches"], "id": 41, "depth": 5, "collapsed": true}, {"name": "Islam: Quran and Umma", "meta": ["Explanation: A monotheistic religion founded by Muhammad, centered on the Quran and the global community of believers (umma).", "People: Muhammad; Abu Bakr", "Events: Hijra (622 CE); Abbasid Caliphate (750 CE)", "Dates: 622 CE", "Ideas: Five Pillars of Islam; Umma", "Things: Quran; mosques"], "id": 42, "depth": 5, "collapsed": true}], "id": 39, "depth": 4, "collapsed": true}], "id": 32, "depth": 3, "collapsed": true}, {"name": "Interactions and Encounters", "children": [{"name": "Communication Networks", "children": [{"name": "Silk Roads", "meta": ["Explanation: Overland trade routes connecting East Asia to the Mediterranean, facilitating the exchange of goods, ideas, and religions.", "People: Zhang Qian; Marco Polo", "Events: Mongol Empire stabilization (13th century)", "Dates: 200 BCE–1400s CE", "Ideas: Cultural diffusion; luxury trade", "Things: Silk; caravanserai"], "id": 45, "depth": 5, "collapsed": true}, {"name": "Sea Roads", "meta": ["Explanation: Maritime trade networks across the Indian Ocean that enabled large-scale commercial and cultural exchange using predictable wind patterns.", "People: Zheng He; Arab merchants", "Events: Ming voyages (1405–1433)", "Dates: 1200–1500 CE peak", "Ideas: Monsoon navigation; commercial diasporas", "Things: Dhows; junks"], "id": 46, "depth": 5, "collapsed": true}, {"name": "Sand Roads", "meta": ["Explanation: Trans-Saharan trade routes linking West Africa with North Africa and the Mediterranean world.", "People: Mansa Musa", "Events: Mansa Musa’s pilgrimage (1324)", "Dates: 1200–1500 CE", "Ideas: Gold-salt trade; Islamization", "Things: Camel caravans"], "id": 47, "depth": 5, "collapsed": true}], "id": 44, "depth": 4, "collapsed": true}, {"name": "Cross-Cultural Exchange", "children": [{"name": "Diffusion of religion", "meta": ["Explanation: The spread of belief systems across regions through trade, conquest, and missionary activity.", "People: Xuanzang; Sufi missionaries", "Events: Spread of Buddhism to China (Tang era)", "Dates: 600–1200 CE", "Ideas: Syncretism; conversion", "Things: Buddhist monasteries"], "id": 49, "depth": 5, "collapsed": true}, {"name": "Technology transfer", "meta": ["Explanation: The movement of innovations such as tools, techniques, and knowledge between different societies.", "People: Chinese engineers; Islamic scholars", "Events: Spread of gunpowder west (Mongol era)", "Dates: 1200–1400 CE", "Ideas: Diffusion of innovation", "Things: Compass; paper; gunpowder"], "id": 50, "depth": 5, "collapsed": true}, {"name": "Spread of disease", "meta": ["Explanation: The transmission of illnesses along trade routes, often with significant demographic and social consequences.", "People: (Not individual-driven; use groups) Mongol traders", "Events: Black Death pandemic", "Dates: 1347–1351", "Ideas: Epidemiological diffusion", "Things: Flea-infested rats"], "id": 51, "depth": 5, "collapsed": true}], "id": 48, "depth": 4, "collapsed": true}], "id": 43, "depth": 3, "collapsed": true}], "id": 3, "depth": 2, "collapsed": false}, {"name": "Chapter 2: Varieties of Civilizations (1200–1450)", "children": [{"name": "China and Its Neighbors", "children": [{"name": "Song Dynasty China", "children": [{"name": "Golden Age of Arts and Literature", "meta": ["Explanation: A period of significant cultural achievement in China marked by advances in painting, poetry, and intellectual life under the Song dynasty.", "People: Su Shi", "Events: Song cultural flourishing", "Dates: 960–1279", "Ideas: Scholar-official culture", "Things: Landscape paintings"], "id": 55, "depth": 5, "collapsed": true}, {"name": "Bureaucratic State Structure", "meta": ["Explanation: A government system staffed by trained officials selected through examinations, emphasizing merit and administrative efficiency.", "People: Emperor Taizu", "Events: Expansion of civil service bureaucracy", "Dates: 10th–13th centuries", "Ideas: Meritocracy", "Things: Examination halls"], "id": 56, "depth": 5, "collapsed": true}, {"name": "Examination System", "meta": ["Explanation: A civil service testing system based on Confucian texts used to recruit government officials.", "People: Scholar-gentry class", "Events: Song exam expansion", "Dates: 960–1279", "Ideas: Confucian merit-based rule", "Things: Civil service exams"], "id": 57, "depth": 5, "collapsed": true}, {"name": "Economic Revolution", "meta": ["Explanation: A period of rapid economic growth during the Song dynasty characterized by increased agricultural productivity, urbanization, and commercialization.", "People: Chinese merchants", "Events: Champa rice introduction", "Dates: 11th century", "Ideas: Commercialization", "Things: Paper money"], "id": 58, "depth": 5, "collapsed": true}, {"name": "Technological Innovations", "meta": ["Explanation: Advances such as printing, gunpowder, and the compass that enhanced communication, warfare, and navigation.", "People: Bi Sheng (movable type)", "Events: Spread of printing", "Dates: 11th century", "Ideas: Innovation diffusion", "Things: Compass; gunpowder"], "id": 59, "depth": 5, "collapsed": true}, {"name": "Foot Binding and Patriarchy", "meta": ["Explanation: A cultural practice reflecting intensified gender inequality in which women’s feet were bound to signify status and reinforce male dominance.", "People: Elite Song women", "Events: Spread of foot binding", "Dates: Song Dynasty", "Ideas: Patriarchy", "Things: Bound feet"], "id": 60, "depth": 5, "collapsed": true}], "id": 54, "depth": 4, "collapsed": true}, {"name": "Interactions", "children": [{"name": "Korea: Tribute System and Hangul", "meta": ["Explanation: Korea maintained political independence while participating in a Chinese-centered tribute system and developed Hangul, a unique phonetic writing system.", "People: King Sejong the Great", "Events: Creation of Hangul (1443)", "Dates: 1443–1446", "Ideas: Tributary diplomacy; cultural adaptation of Confucianism", "Things: Hangul script; Korean tribute missions to Ming China"], "id": 62, "depth": 5, "collapsed": true}, {"name": "Vietnam: Mandate of Heaven and Chu Nom", "meta": ["Explanation: Vietnam adopted Chinese political ideas like the Mandate of Heaven while developing its own writing system (Chu Nom) and maintaining cultural autonomy.", "People: Le Loi (founder of Le Dynasty)", "Events: Vietnamese independence from Ming China (1428)", "Dates: 1428", "Ideas: Mandate of Heaven; Confucian bureaucracy", "Things: Chu Nom script; civil service exams"], "id": 63, "depth": 5, "collapsed": true}, {"name": "Japan: Voluntary Borrowing and Samurai", "meta": ["Explanation: Japan selectively adopted Chinese cultural elements while maintaining independent political structures dominated by a warrior elite (samurai).", "People: Minamoto no Yoritomo; Ashikaga Yoshimitsu", "Events: Establishment of Kamakura Shogunate (1192)", "Dates: 1192; Muromachi period (1336–1573)", "Ideas: Bushido; feudal decentralization", "Things: Samurai armor; shogunate system"], "id": 64, "depth": 5, "collapsed": true}], "id": 61, "depth": 4, "collapsed": true}], "id": 53, "depth": 3, "collapsed": true}, {"name": "The Worlds of Islam", "children": [{"name": "Islamic Heartland", "children": [{"name": "Abbasid Caliphate Fragmentation", "meta": ["Explanation: The political breakup of the Abbasid Empire into smaller regional states while maintaining shared religious and cultural traditions.", "People: Harun al-Rashid; Al-Ma'mun", "Events: Rise of regional dynasties (Buyids, Samanids)", "Dates: 900s–1200s", "Ideas: Political decentralization; cultural unity via Islam", "Things: Baghdad; House of Wisdom"], "id": 67, "depth": 5, "collapsed": true}, {"name": "Seljuk Turkic Empire", "meta": ["Explanation: A Turkic Muslim dynasty that controlled much of the eastern Islamic world and supported Sunni Islam.", "People: Tughril Beg; Alp Arslan", "Events: Battle of Manzikert (1071)", "Dates: 11th century", "Ideas: Sunni revival; Turkic military dominance", "Things: Cavalry armies; Persian administrative systems"], "id": 68, "depth": 5, "collapsed": true}, {"name": "Rise of Ottoman Empire", "meta": ["Explanation: The emergence of a powerful Turkish state in Anatolia that would become a major Islamic empire.", "People: Osman I; Mehmed II", "Events: Fall of Constantinople (1453)", "Dates: 1300s–1453", "Ideas: Ghazi ideology; imperial expansion", "Things: Janissaries; cannons at Constantinople"], "id": 69, "depth": 5, "collapsed": true}], "id": 66, "depth": 4, "collapsed": true}, {"name": "Cultural Encounters", "children": [{"name": "India: Sultanate of Delhi", "meta": ["Explanation: A Muslim-ruled state in northern India that facilitated cultural interaction between Islamic and Hindu traditions.", "People: Qutb al-Din Aibak; Alauddin Khalji", "Events: Establishment of Delhi Sultanate (1206)", "Dates: 1206–1526", "Ideas: Islamic rule over Hindu majority; syncretism", "Things: Qutub Minar; Persian administrative practices"], "id": 71, "depth": 5, "collapsed": true}, {"name": "India: Vijayanagar Empire", "meta": ["Explanation: A Hindu kingdom in southern India that coexisted and competed with Muslim states, preserving Hindu traditions.", "People: Krishnadevaraya", "Events: Vijayanagar peak (1500s)", "Dates: 1336–1565", "Ideas: Hindu political revival; resistance to Muslim states", "Things: Temple complexes (Hampi); fortified cities"], "id": 72, "depth": 5, "collapsed": true}, {"name": "Spain: al-Andalus and Reconquista", "meta": ["Explanation: A region of Muslim rule in Iberia marked by cultural exchange, followed by Christian reconquest ending in 1492.", "People: Abd al-Rahman III; Ferdinand and Isabella", "Events: Fall of Granada (1492)", "Dates: 711–1492", "Ideas: Religious coexistence (convivencia); Christian reconquest", "Things: Alhambra palace; mosques turned cathedrals"], "id": 73, "depth": 5, "collapsed": true}], "id": 70, "depth": 4, "collapsed": true}], "id": 65, "depth": 3, "collapsed": true}, {"name": "The Worlds of Christendom", "children": [{"name": "Eastern Orthodox World", "children": [{"name": "Byzantine Empire Decline", "meta": ["Explanation: The gradual weakening of the Byzantine Empire due to internal struggles and external pressures, culminating in its fall in 1453.", "People: Justinian (earlier strength); Constantine XI (final emperor)", "Events: Fall of Constantinople (1453)", "Dates: 1204 (Fourth Crusade); 1453", "Ideas: Political fragmentation; external pressure", "Things: Hagia Sophia"], "id": 76, "depth": 5, "collapsed": true}, {"name": "Caesaropapism", "meta": ["Explanation: A political-religious system in which the emperor exercised authority over both state and church affairs.", "People: Emperor Justinian", "Events: Justinian’s legal reforms (Corpus Juris Civilis)", "Dates: 6th century CE", "Ideas: State control of church", "Things: Imperial decrees; Orthodox Church structure"], "id": 77, "depth": 5, "collapsed": true}, {"name": "Emergence of Kievan Rus", "meta": ["Explanation: The development of a Slavic state influenced by Byzantine culture and Orthodox Christianity.", "People: Vladimir of Kiev", "Events: Conversion to Orthodox Christianity (988)", "Dates: 988", "Ideas: Byzantine cultural diffusion", "Things: Cyrillic alphabet"], "id": 78, "depth": 5, "collapsed": true}], "id": 75, "depth": 4, "collapsed": true}, {"name": "Western Europe", "children": [{"name": "Feudalism and Manorialism", "meta": ["Explanation: A decentralized social and economic system based on landholding, where lords granted land in exchange for service and peasants worked the land.", "People: William the Conqueror", "Events: Norman Conquest (1066)", "Dates: 1000–1300", "Ideas: Vassalage; serfdom", "Things: Fiefs; manors"], "id": 80, "depth": 5, "collapsed": true}, {"name": "Roman Catholic Church Influence", "meta": ["Explanation: The dominant religious institution in Western Europe, shaping political authority, education, and daily life.", "People: Pope Gregory VII; Pope Urban II", "Events: Investiture Controversy (1075–1122)", "Dates: 1000–1300", "Ideas: Papal supremacy", "Things: Cathedrals; monasteries"], "id": 81, "depth": 5, "collapsed": true}, {"name": "High Middle Ages Expansion", "meta": ["Explanation: A period of population growth, agricultural expansion, and economic revival in Europe after 1000 C.E.", "People: European peasantry; lords", "Events: Agricultural expansion (heavy plow use)", "Dates: 1000–1300", "Ideas: Population growth; economic revival", "Things: Three-field system; windmills"], "id": 82, "depth": 5, "collapsed": true}, {"name": "The Crusades", "meta": ["Explanation: Religious wars initiated by European Christians to reclaim holy lands, resulting in increased cross-cultural contact.", "People: Pope Urban II; Saladin", "Events: First Crusade (1095–1099); Third Crusade", "Dates: 1095–1291", "Ideas: Religious warfare; cross-cultural exchange", "Things: Crusader states; relics"], "id": 83, "depth": 5, "collapsed": true}, {"name": "Renaissance and Reason", "meta": ["Explanation: A revival of classical learning and emphasis on human reasoning that began in late medieval Europe.", "People: Petrarch; Leonardo da Vinci; Michelangelo", "Events: Italian Renaissance (Florence-centered)", "Dates: 1300–1500", "Ideas: Humanism; secular learning", "Things: Classical manuscripts; perspective art"], "id": 84, "depth": 5, "collapsed": true}], "id": 79, "depth": 4, "collapsed": true}], "id": 74, "depth": 3, "collapsed": true}, {"name": "Civilizations of the Americas", "children": [{"name": "Mesoamerica", "children": [{"name": "Maya City-States", "meta": ["Explanation: Independent urban centers in Mesoamerica known for advanced writing, astronomy, and architecture.", "People: Pakal the Great (Palenque)", "Events: Classic Maya period decline (~900 CE)", "Dates: 250–900 CE", "Ideas: Calendar systems; astronomy", "Things: Pyramids; glyph writing"], "id": 87, "depth": 5, "collapsed": true}, {"name": "Aztec Empire: Tenochtitlan", "meta": ["Explanation: A powerful centralized state in central Mexico with a capital city built on a lake, known for tribute systems and military expansion.", "People: Moctezuma II", "Events: Spanish conquest (1521)", "Dates: 1325–1521", "Ideas: Tribute empire; militarism", "Things: Chinampas; Templo Mayor"], "id": 88, "depth": 5, "collapsed": true}, {"name": "Human Sacrifice Rituals", "meta": ["Explanation: Religious practices intended to appease gods and maintain cosmic order, central to Aztec belief systems.", "People: Aztec priests", "Events: Ritual sacrifices to Huitzilopochtli", "Dates: 1300s–1500s", "Ideas: Cosmic balance; appeasing gods", "Things: Sacrificial altars; obsidian blades"], "id": 89, "depth": 5, "collapsed": true}], "id": 86, "depth": 4, "collapsed": true}, {"name": "Andean Region", "children": [{"name": "Inca Empire: Bureaucracy", "meta": ["Explanation: A highly organized state in the Andes governed through a centralized administration without a written language.", "People: Pachacuti; Atahualpa", "Events: Inca expansion (1400s)", "Dates: 1400–1530", "Ideas: Central planning; state control", "Things: Road systems; storehouses"], "id": 91, "depth": 5, "collapsed": true}, {"name": "Mita Labor System", "meta": ["Explanation: A system of compulsory labor used by the Inca state for public works and resource extraction.", "People: Inca state officials", "Events: Labor drafts for infrastructure", "Dates: 1400s–1500s", "Ideas: Labor taxation", "Things: Terrace farming; road construction"], "id": 92, "depth": 5, "collapsed": true}, {"name": "Quipus Record Keeping", "meta": ["Explanation: A system of knotted cords used by the Inca to record numerical data and administrative information.", "People: Quipu specialists (quipucamayocs)", "Events: Administrative record keeping", "Dates: Inca period", "Ideas: Non-written data systems", "Things: Knotted cords"], "id": 93, "depth": 5, "collapsed": true}], "id": 90, "depth": 4, "collapsed": true}, {"name": "Social Structures", "children": [{"name": "Gender Parallelism", "meta": ["Explanation: A system in which men and women had distinct but complementary roles within society, particularly in Andean cultures.", "People: Inca men and women (complementary roles)", "Events: Division of labor in Andean society", "Dates: Pre-Columbian Andes", "Ideas: Complementary gender roles (not hierarchy-based patriarchy)", "Things: Textile production (female); agriculture (male shared)"], "id": 95, "depth": 5, "collapsed": true}], "id": 94, "depth": 4, "collapsed": true}], "id": 85, "depth": 3, "collapsed": true}], "id": 52, "depth": 2, "collapsed": false}, {"name": "Chapter 3: Connections and Interactions (1200–1450)", "children": [{"name": "The Silk Roads", "children": [{"name": "Origins and Growth", "children": [{"name": "Eurasian relay trade", "meta": ["Explanation: A system in which goods moved across Eurasia in stages, passing through multiple intermediaries rather than a single continuous journey.", "People: Sogdian merchants; Marco Polo", "Events: Mongol facilitation of long-distance trade (Pax Mongolica)", "Dates: 1200s–1300s", "Ideas: Intermediary trade networks; economic interdependence", "Things: Caravan routes; Silk Road hubs (Samarkand)"], "id": 99, "depth": 5, "collapsed": true}, {"name": "Luxury goods for elites", "meta": ["Explanation: High-value items such as silk, spices, and precious metals traded primarily among wealthy classes across long distances.", "People: Chinese silk producers; Venetian merchants", "Events: Increased Eurasian trade under Mongols", "Dates: 1200–1400", "Ideas: Status consumption; elite demand", "Things: Silk; porcelain; spices; precious metals"], "id": 100, "depth": 5, "collapsed": true}, {"name": "Security by large states", "meta": ["Explanation: The protection of trade routes by powerful empires (such as the Mongols), which facilitated safer and more efficient commerce.", "People: Chinggis Khan; Khubilai Khan", "Events: Establishment of Pax Mongolica", "Dates: 1206–1368", "Ideas: Political stability enabling trade", "Things: Yam system (relay stations); protected caravan routes"], "id": 101, "depth": 5, "collapsed": true}], "id": 98, "depth": 4, "collapsed": true}, {"name": "Cultural Exchange", "children": [{"name": "Spread of Buddhism", "meta": ["Explanation: The transmission of Buddhist beliefs and practices from India into Central, East, and Southeast Asia via trade networks.", "People: Xuanzang; Central Asian monks", "Events: Tang Dynasty Buddhist expansion (earlier foundation continuing into period)", "Dates: 600–1200 (continuing influence into 1200–1450)", "Ideas: Religious diffusion; syncretism", "Things: Buddhist monasteries; cave temples (Dunhuang)"], "id": 103, "depth": 5, "collapsed": true}, {"name": "Mahayana transformation", "meta": ["Explanation: The adaptation of Buddhism into a more inclusive form emphasizing compassion and the possibility of enlightenment for all.", "People: Nagarjuna (earlier philosopher influencing tradition)", "Events: Spread of Mahayana Buddhism into China and Japan", "Dates: 1st millennium CE (dominant by 1200)", "Ideas: Bodhisattva ideal; universal salvation", "Things: Mahayana sutras"], "id": 104, "depth": 5, "collapsed": true}, {"name": "Disease transmission (Black Death)", "meta": ["Explanation: The spread of epidemic diseases along trade routes, most notably the bubonic plague, which caused massive population loss in Afro-Eurasia.", "People: Mongol traders; Genoese merchants", "Events: Siege of Caffa (1346); spread into Europe (1347)", "Dates: 1347–1351", "Ideas: Pandemic diffusion; demographic collapse", "Things: Bubonic plague bacteria (Yersinia pestis); fleas on rats"], "id": 105, "depth": 5, "collapsed": true}], "id": 102, "depth": 4, "collapsed": true}, {"name": "Technology", "children": [{"name": "Caravanserai", "meta": ["Explanation: Roadside inns that provided lodging, security, and services for merchants traveling along overland trade routes.", "People: Persian and Central Asian merchants", "Events: Expansion of Silk Road infrastructure under Mongols", "Dates: 1200s–1300s", "Ideas: Commercial support systems", "Things: Caravanserai compounds; fortified inns"], "id": 107, "depth": 5, "collapsed": true}, {"name": "Paper money (flying cash)", "meta": ["Explanation: Early forms of currency developed in China that facilitated long-distance trade by reducing the need to carry metal coins.", "People: Song Dynasty officials; Marco Polo (observer)", "Events: Song-Yuan monetary expansion", "Dates: 1000s–1300s", "Ideas: Monetary innovation; credit economy", "Things: Paper currency; promissory notes"], "id": 108, "depth": 5, "collapsed": true}, {"name": "Bills of exchange", "meta": ["Explanation: Financial instruments that allowed merchants to transfer money across distances without physically transporting cash.", "People: Italian bankers (Florence, Venice)", "Events: Rise of European commercial banking", "Dates: 1200s–1400s", "Ideas: Credit systems; financial networks", "Things: Letters of credit; merchant accounts"], "id": 109, "depth": 5, "collapsed": true}], "id": 106, "depth": 4, "collapsed": true}], "id": 97, "depth": 3, "collapsed": true}, {"name": "The Sea Roads", "children": [{"name": "Indian Ocean Commerce", "children": [{"name": "Monsoon wind patterns", "meta": ["Explanation: Seasonal wind systems that enabled predictable maritime travel across the Indian Ocean, shaping trade routes and timing.", "People: Arab sailors; Gujarati merchants", "Events: Regular Indian Ocean trading cycles", "Dates: Long-standing system (pre-1200 continuing through 1450)", "Ideas: Environmental adaptation; seasonal navigation", "Things: Monsoon winds; lateen sails"], "id": 112, "depth": 5, "collapsed": true}, {"name": "Bulk goods for mass market", "meta": ["Explanation: Everyday commodities such as grain, textiles, and timber traded in large quantities across maritime networks.", "People: Indian and Southeast Asian merchants", "Events: Expansion of Indian Ocean trade networks", "Dates: 1200–1500", "Ideas: Mass consumption; regional trade integration", "Things: Textiles (cotton); rice; timber"], "id": 113, "depth": 5, "collapsed": true}, {"name": "Junks and Dhows", "meta": ["Explanation: Large, durable sailing vessels (Chinese junks and Arab dhows) designed for long-distance maritime trade.", "People: Chinese shipbuilders; Arab traders", "Events: Ming maritime expansion", "Dates: 1200–1400s", "Ideas: Maritime technological innovation", "Things: Chinese junks; Arab dhows"], "id": 114, "depth": 5, "collapsed": true}], "id": 111, "depth": 4, "collapsed": true}, {"name": "Southeast Asia", "children": [{"name": "Srivijaya (gold and spices)", "meta": ["Explanation: A maritime empire that controlled key trade routes in Southeast Asia and profited from the exchange of valuable goods like spices.", "People: Srivijayan rulers", "Events: Srivijaya dominance (earlier peak, influence continues)", "Dates: 600–1200 (legacy into 1200s)", "Ideas: Thalassocracy (sea-based empire)", "Things: Spice trade routes; port cities"], "id": 116, "depth": 5, "collapsed": true}, {"name": "Borobudur and Angkor Wat", "meta": ["Explanation: Monumental religious complexes reflecting the influence of Hinduism and Buddhism in Southeast Asian states.", "People: Khmer rulers (Suryavarman II)", "Events: Construction of Angkor Wat (12th century)", "Dates: 1100s", "Ideas: Hindu-Buddhist syncretism", "Things: Temple complexes; bas-reliefs"], "id": 117, "depth": 5, "collapsed": true}, {"name": "Rise of Malacca", "meta": ["Explanation: The emergence of a major port city that became a central hub of Indian Ocean trade and Islamic influence.", "People: Parameswara (founder of Malacca)", "Events: Establishment of Malacca Sultanate (~1400)", "Dates: c. 1400", "Ideas: Islamization via trade; strategic port control", "Things: Strait of Malacca trade hub"], "id": 118, "depth": 5, "collapsed": true}], "id": 115, "depth": 4, "collapsed": true}, {"name": "East Africa", "children": [{"name": "Swahili City-States", "meta": ["Explanation: Coastal trading centers blending African and Islamic cultural elements, actively participating in Indian Ocean commerce.", "People: Swahili merchants", "Events: Kilwa’s trade dominance", "Dates: 1200–1400", "Ideas: Cultural blending (Bantu + Islamic)", "Things: Coral stone mosques; Swahili language"], "id": 120, "depth": 5, "collapsed": true}, {"name": "Islamic influence", "meta": ["Explanation: The spread of Islamic beliefs, practices, and cultural norms through trade networks into East African societies.", "People: Arab traders; Swahili elites", "Events: Conversion of coastal elites", "Dates: 1200–1400", "Ideas: Religious diffusion via commerce", "Things: Mosques; Arabic loanwords"], "id": 121, "depth": 5, "collapsed": true}, {"name": "Great Zimbabwe gold trade", "meta": ["Explanation: The control and export of gold from inland African regions to coastal markets, linking interior economies to global trade.", "People: Shona rulers", "Events: Great Zimbabwe peak (1300s)", "Dates: 1100–1450", "Ideas: Resource control; trade wealth", "Things: Gold mines; stone enclosures"], "id": 122, "depth": 5, "collapsed": true}], "id": 119, "depth": 4, "collapsed": true}, {"name": "Chinese Voyages", "children": [{"name": "Zheng He expeditions", "meta": ["Explanation: State-sponsored maritime voyages during the Ming dynasty aimed at demonstrating Chinese power and expanding tribute relations.", "People: Zheng He; Yongle Emperor", "Events: Seven voyages (1405–1433)", "Dates: 1405–1433", "Ideas: State-sponsored exploration; tribute diplomacy", "Things: Treasure ships; Indian Ocean ports"], "id": 124, "depth": 5, "collapsed": true}, {"name": "Ming tribute system", "meta": ["Explanation: A diplomatic and economic system in which foreign states acknowledged Chinese superiority in exchange for trade privileges.", "People: Yongle Emperor", "Events: Expansion of tribute missions during Ming era", "Dates: 1400s", "Ideas: Sinocentrism; hierarchical diplomacy", "Things: Tribute gifts; imperial court ceremonies"], "id": 125, "depth": 5, "collapsed": true}], "id": 123, "depth": 4, "collapsed": true}], "id": 110, "depth": 3, "collapsed": true}, {"name": "The Sand Roads", "children": [{"name": "Trans-Saharan Trade", "children": [{"name": "Arabian camel introduction", "meta": ["Explanation: The use of camels, which made long-distance desert travel feasible and expanded trans-Saharan trade networks.", "People: Berber traders", "Events: Spread of camel saddle technology across Sahara", "Dates: c. 300–500 CE (fully operational by 1200)", "Ideas: Environmental adaptation; long-distance trade expansion", "Things: Dromedary camels; camel saddles"], "id": 128, "depth": 5, "collapsed": true}, {"name": "Gold, salt, and slaves", "meta": ["Explanation: Key commodities exchanged across the Sahara, linking West African resources with North African and Mediterranean markets.", "People: West African rulers (e.g., Mansa Musa)", "Events: Trans-Saharan trade peak", "Dates: 1200–1500", "Ideas: Resource specialization; trade interdependence", "Things: Gold (Bure mines); salt (Taghaza mines); enslaved persons"], "id": 129, "depth": 5, "collapsed": true}, {"name": "Caravans across the desert", "meta": ["Explanation: Organized groups of traders traveling together for protection and efficiency across harsh desert environments.", "People: Tuareg caravan leaders", "Events: Regular caravan trade routes linking Timbuktu to North Africa", "Dates: 1200–1500", "Ideas: Collective security; trade logistics", "Things: Camel caravans (hundreds–thousands); desert trade routes"], "id": 130, "depth": 5, "collapsed": true}], "id": 127, "depth": 4, "collapsed": true}, {"name": "West African Empires", "children": [{"name": "Ghana, Mali, Songhay", "meta": ["Explanation: Successive West African states that grew wealthy and powerful by controlling trans-Saharan trade routes.", "People: Sundiata Keita (Mali); Sunni Ali (Songhay)", "Events: Mali Empire expansion (1200s); Songhay rise (1400s)", "Dates: Ghana (c. 800–1100); Mali (c. 1230–1450); Songhay (c. 1460–1591)", "Ideas: Trade taxation; imperial control of routes", "Things: Niger River trade networks; trading cities (Gao, Timbuktu)"], "id": 132, "depth": 5, "collapsed": true}, {"name": "Mansa Musa’s pilgrimage", "meta": ["Explanation: A famous journey to Mecca by the ruler of Mali that demonstrated immense wealth and spread knowledge of West Africa globally.", "People: Mansa Musa", "Events: Hajj to Mecca (1324–1325)", "Dates: 1324", "Ideas: Islamic legitimacy; global awareness of Mali", "Things: Gold distribution in Cairo; caravan of thousands"], "id": 133, "depth": 5, "collapsed": true}, {"name": "Timbuktu intellectual center", "meta": ["Explanation: A major city known for Islamic scholarship, education, and manuscript production in West Africa.", "People: Ahmad Baba", "Events: Flourishing of Sankore University", "Dates: 1300s–1500s", "Ideas: Islamic education; manuscript culture", "Things: Sankore madrasa; Arabic manuscripts"], "id": 134, "depth": 5, "collapsed": true}], "id": 131, "depth": 4, "collapsed": true}, {"name": "The Islamic World", "children": [{"name": "Central location in Afro-Eurasia", "meta": ["Explanation: The geographic position of Islamic regions that enabled them to act as intermediaries in trade and cultural exchange across continents.", "People: Abbasid merchants; Ottoman traders", "Events: Islamic control of key trade routes", "Dates: 1200–1500", "Ideas: Interregional connectivity; commercial brokerage", "Things: Baghdad; Cairo; caravan routes"], "id": 136, "depth": 5, "collapsed": true}, {"name": "Islamic Green Revolution", "meta": ["Explanation: The diffusion of new crops and agricultural techniques that increased productivity across Islamic lands.", "People: Muslim agriculturalists", "Events: Diffusion of crops across Islamic world", "Dates: 700–1200 (impact continues into 1200–1450)", "Ideas: Agricultural diffusion; intensification", "Things: Citrus fruits; sugar; irrigation systems (qanats)"], "id": 137, "depth": 5, "collapsed": true}, {"name": "House of Wisdom (Baghdad)", "meta": ["Explanation: A major center of learning where scholars translated and expanded upon knowledge from various cultures.", "People: Al-Ma'mun; Hunayn ibn Ishaq", "Events: Translation movement in Abbasid era", "Dates: 800s–900s", "Ideas: Knowledge preservation; cross-cultural synthesis", "Things: Greek texts (Aristotle); Arabic manuscripts"], "id": 138, "depth": 5, "collapsed": true}, {"name": "Scientific and medical scholarship", "meta": ["Explanation: Advances in fields such as mathematics, astronomy, and medicine produced by scholars in the Islamic world.", "People: Ibn Sina (Avicenna); Al-Khwarizmi", "Events: Development of algebra; medical encyclopedias", "Dates: 800–1200 (continuing influence)", "Ideas: Empirical observation; scientific inquiry", "Things: Canon of Medicine; algebraic texts"], "id": 139, "depth": 5, "collapsed": true}], "id": 135, "depth": 4, "collapsed": true}], "id": 126, "depth": 3, "collapsed": true}, {"name": "The American Web", "children": [{"name": "Nodes of Commercial Activity", "children": [{"name": "Cahokia (Mississippi valley)", "meta": ["Explanation: A large urban center in North America that served as a hub of regional trade and political organization.", "People: Mississippian elites", "Events: Cahokia peak population (~1200)", "Dates: c. 1050–1300", "Ideas: Regional trade networks; urbanization", "Things: Monk’s Mound; trade goods (shells, copper)"], "id": 142, "depth": 5, "collapsed": true}, {"name": "Chaco Phenomenon (Turquoise)", "meta": ["Explanation: A network of settlements in the American Southwest connected through trade, especially in turquoise.", "People: Ancestral Puebloans", "Events: Chaco Canyon trade system peak", "Dates: c. 900–1150 (legacy into later systems)", "Ideas: Regional exchange networks", "Things: Turquoise; road systems"], "id": 143, "depth": 5, "collapsed": true}, {"name": "Maya and Aztec merchants (Pochteca)", "meta": ["Explanation: Professional traders who facilitated long-distance exchange and gathered intelligence for political authorities.", "People: Pochteca merchants", "Events: Expansion of Aztec trade networks", "Dates: 1300s–1500s", "Ideas: Merchant specialization; state intelligence gathering", "Things: Luxury goods (feathers, cacao, jade)"], "id": 144, "depth": 5, "collapsed": true}, {"name": "Inca state-run economy (Quipus)", "meta": ["Explanation: A centrally managed economic system that used labor obligations and record-keeping devices instead of markets.", "People: Inca administrators (quipucamayocs)", "Events: Inca imperial expansion", "Dates: 1400–1530", "Ideas: Redistribution economy; state control", "Things: Quipus; storehouses (qollqa)"], "id": 145, "depth": 5, "collapsed": true}], "id": 141, "depth": 4, "collapsed": true}, {"name": "Obstacles to Interaction", "children": [{"name": "Lack of large pack animals", "meta": ["Explanation: The absence of animals suitable for transporting goods limited the scale and efficiency of trade in the Americas.", "People: Andean llama herders", "Events: Use of llamas as limited transport", "Dates: Pre-Columbian era", "Ideas: Technological limitation", "Things: Llamas (small loads vs. camels/horses)"], "id": 147, "depth": 5, "collapsed": true}, {"name": "North-South orientation", "meta": ["Explanation: Geographic alignment that hindered the spread of crops and technologies due to varying climates.", "People: Indigenous farmers across Andes/Mesoamerica", "Events: Limited crop diffusion across regions", "Dates: Pre-1500", "Ideas: Geographic barriers to diffusion", "Things: Maize; potatoes (regionally confined spread)"], "id": 148, "depth": 5, "collapsed": true}, {"name": "Geographic bottlenecks", "meta": ["Explanation: Natural barriers such as mountains and dense forests that restricted movement and communication.", "People: Andean/Incan road builders", "Events: Construction of Inca road systems to overcome terrain", "Dates: 1400s", "Ideas: Environmental constraints", "Things: Andes Mountains; dense jungles; narrow passes"], "id": 149, "depth": 5, "collapsed": true}], "id": 146, "depth": 4, "collapsed": true}], "id": 140, "depth": 3, "collapsed": true}], "id": 96, "depth": 2, "collapsed": false}, {"name": "Chapter 4: The Mongol Moment and the Re-Making of Eurasia (1200–1450)", "children": [{"name": "Breakout: The Mongol Empire", "children": [{"name": "Rise of Chinggis Khan", "children": [{"name": "Temujin’s early hardships", "meta": ["Explanation: The difficult childhood of Chinggis Khan (Temujin), marked by poverty and conflict, which shaped his leadership style and drive to unify the Mongols.", "People: Temujin (Chinggis Khan); Yesügei (father)", "Events: Abandonment of Temujin’s family after Yesügei’s death", "Dates: c. 1170s–1180s", "Ideas: Merit-based loyalty; survival leadership", "Things: Steppe nomadic life; clan-based society"], "id": 153, "depth": 5, "collapsed": true}, {"name": "Unification of Mongol tribes", "meta": ["Explanation: The process by which Chinggis Khan brought together competing nomadic groups under a single political and military structure.", "People: Chinggis Khan; Jamukha (rival)", "Events: Defeat of rival tribes (e.g., Tatars, Merkit)", "Dates: late 1100s–1206", "Ideas: Tribal unification; loyalty over kinship", "Things: Mongol cavalry forces; tribal alliances"], "id": 154, "depth": 5, "collapsed": true}, {"name": "1206 Mongol tribal assembly", "meta": ["Explanation: A gathering (kurultai) where Temujin was declared Chinggis Khan, marking the formal establishment of Mongol leadership.", "People: Chinggis Khan", "Events: Kurultai of 1206", "Dates: 1206", "Ideas: Legitimation of authority; steppe political tradition", "Things: Kurultai council; imperial titles"], "id": 155, "depth": 5, "collapsed": true}], "id": 152, "depth": 4, "collapsed": true}, {"name": "Military Success Factors", "children": [{"name": "Superb horsemanship and archery", "meta": ["Explanation: The Mongols’ mastery of mounted combat and composite bows, allowing for highly mobile and effective warfare.", "People: Mongol horse archers", "Events: Mongol conquests across Central Asia", "Dates: 1206–1227 (Chinggis Khan’s campaigns)", "Ideas: Mobility; tactical flexibility", "Things: Composite bows; steppe horses"], "id": 157, "depth": 5, "collapsed": true}, {"name": "Units of 10, 100, 1000, 10000", "meta": ["Explanation: A decimal-based military organization that enhanced discipline, coordination, and command structure.", "People: Chinggis Khan (military organizer)", "Events: Formalization of decimal system", "Dates: early 1200s", "Ideas: Bureaucratic military structure", "Things: Arban (10); Jagun (100); Mingghan (1000); Tumen (10,000)"], "id": 158, "depth": 5, "collapsed": true}, {"name": "Strict discipline and loyalty", "meta": ["Explanation: Enforced obedience and strong allegiance within Mongol forces, ensuring cohesion and effectiveness in battle.", "People: Mongol commanders (e.g., Subutai)", "Events: Enforcement of military laws (Yassa code)", "Dates: 1200s", "Ideas: Absolute obedience; meritocracy", "Things: Yassa legal code"], "id": 159, "depth": 5, "collapsed": true}, {"name": "Reputation for ruthless brutality", "meta": ["Explanation: The deliberate use of extreme violence to intimidate enemies and discourage resistance.", "People: Chinggis Khan; Mongol generals", "Events: Destruction of cities like Nishapur", "Dates: 1220s", "Ideas: Psychological warfare", "Things: Mass executions; destroyed cities"], "id": 160, "depth": 5, "collapsed": true}, {"name": "Incorporation of conquered peoples", "meta": ["Explanation: The practice of integrating skilled individuals from conquered regions into the Mongol military and administration.", "People: Persian administrators; Chinese engineers", "Events: Use of foreign specialists in Mongol campaigns", "Dates: 1200s–1300s", "Ideas: Pragmatism; imperial adaptation", "Things: Siege weapons; administrative systems"], "id": 161, "depth": 5, "collapsed": true}], "id": 156, "depth": 4, "collapsed": true}, {"name": "Imperial Administration", "children": [{"name": "Centralized bureaucracy at Karakorum", "meta": ["Explanation: The administrative system established in the Mongol capital to govern diverse territories and manage imperial affairs.", "People: Ögedei Khan", "Events: Establishment of Karakorum as capital", "Dates: 1235", "Ideas: Centralized imperial rule", "Things: Karakorum city; administrative offices"], "id": 163, "depth": 5, "collapsed": true}, {"name": "System of relay stations (Yam)", "meta": ["Explanation: A network of posts that facilitated rapid communication and movement across the empire.", "People: Mongol couriers", "Events: Expansion of Yam system across empire", "Dates: 1200s–1300s", "Ideas: Efficient communication networks", "Things: Relay stations; fresh horses"], "id": 164, "depth": 5, "collapsed": true}, {"name": "Census-taking for taxation", "meta": ["Explanation: The recording of populations and resources to organize taxation and administrative control.", "People: Mongol tax officials", "Events: Census of conquered territories", "Dates: 1200s", "Ideas: Fiscal administration; state control", "Things: Tax records; tribute systems"], "id": 165, "depth": 5, "collapsed": true}, {"name": "Religious toleration", "meta": ["Explanation: A policy allowing diverse religious practices within the empire, promoting stability across conquered regions.", "People: Chinggis Khan; Khubilai Khan", "Events: Protection of religious leaders", "Dates: 1200s–1300s", "Ideas: Religious pluralism; political stability", "Things: Buddhist temples; mosques; Christian churches"], "id": 166, "depth": 5, "collapsed": true}], "id": 162, "depth": 4, "collapsed": true}], "id": 151, "depth": 3, "collapsed": true}, {"name": "Encountering the Mongols", "children": [{"name": "China and the Yuan Dynasty", "children": [{"name": "70-year conquest (1209–1279)", "meta": ["Explanation: The prolonged Mongol campaign to conquer China, culminating in the establishment of the Yuan Dynasty.", "People: Chinggis Khan; Khubilai Khan; Song emperors", "Events: Fall of Southern Song (1279)", "Dates: 1209–1279", "Ideas: Gradual conquest of sedentary empire", "Things: Siege warfare; naval battles (Yangtze River)"], "id": 169, "depth": 5, "collapsed": true}, {"name": "Khubilai Khan’s rule", "meta": ["Explanation: The leadership of Chinggis Khan’s grandson, who governed China using a mix of Mongol and Chinese practices.", "People: Khubilai Khan; Marco Polo", "Events: Establishment of Yuan Dynasty (1271)", "Dates: 1271–1294", "Ideas: Dual administration; partial sinicization", "Things: Khanbaliq (Beijing); imperial court"], "id": 170, "depth": 5, "collapsed": true}, {"name": "Adoption of Chinese administrative practices", "meta": ["Explanation: The use of established Chinese bureaucratic systems to effectively govern a large, settled population.", "People: Confucian officials; Mongol administrators", "Events: Retention of civil service structures", "Dates: 1200s–1300s", "Ideas: Bureaucratic governance; state continuity", "Things: Tax systems; administrative districts"], "id": 171, "depth": 5, "collapsed": true}, {"name": "Discrimination against native Chinese", "meta": ["Explanation: A social hierarchy under Mongol rule that privileged foreigners and Mongols over the Chinese population.", "People: Mongol elite; Central Asian administrators", "Events: Yuan social hierarchy enforcement", "Dates: 1271–1368", "Ideas: Ethnic stratification", "Things: Four-tier system (Mongols → Semu → North Chinese → South Chinese)"], "id": 172, "depth": 5, "collapsed": true}, {"name": "Replaced by Ming Dynasty (1368)", "meta": ["Explanation: The overthrow of Mongol rule in China and the restoration of native Chinese leadership.", "People: Zhu Yuanzhang (Hongwu Emperor)", "Events: Fall of Yuan; rise of Ming", "Dates: 1368", "Ideas: Restoration of Chinese rule", "Things: Ming capital at Nanjing"], "id": 173, "depth": 5, "collapsed": true}], "id": 168, "depth": 4, "collapsed": true}, {"name": "Persia and the Il-Khanate", "children": [{"name": "Abrupt and violent conquest", "meta": ["Explanation: The rapid and destructive Mongol invasion of Persian lands, leading to major political upheaval.", "People: Hulagu Khan", "Events: Mongol invasion of Persia (1250s)", "Dates: 1250s", "Ideas: Shock conquest; imperial expansion", "Things: Destroyed cities; displaced populations"], "id": 175, "depth": 5, "collapsed": true}, {"name": "Sacking of Baghdad (1258)", "meta": ["Explanation: The destruction of a major Islamic cultural and political center, symbolizing the end of Abbasid power.", "People: Hulagu Khan; Caliph al-Musta'sim", "Events: Fall of Baghdad", "Dates: 1258", "Ideas: End of Abbasid political authority", "Things: Destroyed libraries; Tigris River filled with manuscripts"], "id": 176, "depth": 5, "collapsed": true}, {"name": "Mongol conversion to Islam", "meta": ["Explanation: The gradual adoption of Islam by Mongol rulers in Persia, facilitating cultural integration.", "People: Ghazan Khan", "Events: Official conversion of Ilkhanate rulers", "Dates: 1295", "Ideas: Religious assimilation", "Things: Mosques; Islamic legal practices"], "id": 177, "depth": 5, "collapsed": true}, {"name": "Assimilation into Persian society", "meta": ["Explanation: The blending of Mongol elites into local culture, language, and administrative traditions.", "People: Persian bureaucrats; Ilkhanate rulers", "Events: Adoption of Persian language and administration", "Dates: late 1200s–1300s", "Ideas: Cultural integration", "Things: Persian literature; administrative systems"], "id": 178, "depth": 5, "collapsed": true}], "id": 174, "depth": 4, "collapsed": true}, {"name": "Russia and the Golden Horde", "children": [{"name": "Rule from the steppes", "meta": ["Explanation: Indirect Mongol control over Russian territories, governing from outside urban centers.", "People: Batu Khan", "Events: Mongol conquest of Rus (1237–1240)", "Dates: 1200s", "Ideas: Indirect rule", "Things: Steppe capitals; tribute networks"], "id": 180, "depth": 5, "collapsed": true}, {"name": "Heavy tribute and tax burdens", "meta": ["Explanation: The extraction of resources from Russian populations to support Mongol authority.", "People: Russian princes; Mongol tax collectors", "Events: Tribute system under Golden Horde", "Dates: 1200s–1400s", "Ideas: Economic exploitation", "Things: Tribute payments (silver, goods)"], "id": 181, "depth": 5, "collapsed": true}, {"name": "Rise of Moscow as primary collector", "meta": ["Explanation: The increasing power of Moscow as it gained favor by collecting tribute for the Mongols.", "People: Ivan I (Ivan Kalita)", "Events: Moscow’s rise as tribute center", "Dates: 1300s", "Ideas: Political centralization", "Things: Moscow principality"], "id": 182, "depth": 5, "collapsed": true}, {"name": "Limited Mongol cultural influence", "meta": ["Explanation: The relatively small impact of Mongol culture on Russian society despite political domination.", "People: Russian Orthodox clergy", "Events: Preservation of Orthodox Christianity", "Dates: 1200s–1400s", "Ideas: Cultural resistance", "Things: Orthodox churches"], "id": 183, "depth": 5, "collapsed": true}], "id": 179, "depth": 4, "collapsed": true}], "id": 167, "depth": 3, "collapsed": true}, {"name": "The Mongol Eurasian Network", "children": [{"name": "Eurasian Economy", "children": [{"name": "Promotion of international commerce", "meta": ["Explanation: Mongol policies that encouraged trade across vast distances by ensuring stability and protection.", "People: Mongol rulers; Silk Road merchants", "Events: Pax Mongolica", "Dates: 1200s–1300s", "Ideas: Economic integration", "Things: Trade caravans; Silk Road routes"], "id": 186, "depth": 5, "collapsed": true}, {"name": "Financial backing for caravans", "meta": ["Explanation: State support for merchants, including investments that facilitated long-distance trade.", "People: Mongol elites; merchant groups", "Events: State-supported trade partnerships", "Dates: 1200s", "Ideas: Commercial investment", "Things: Merchant associations; caravan financing"], "id": 187, "depth": 5, "collapsed": true}, {"name": "Standardized weights and measures", "meta": ["Explanation: The establishment of consistent systems to simplify trade across regions.", "People: Mongol administrators", "Events: Standardization policies", "Dates: 1200s–1300s", "Ideas: Economic regulation", "Things: Standard weights; measurement tools"], "id": 188, "depth": 5, "collapsed": true}], "id": 185, "depth": 4, "collapsed": true}, {"name": "Diplomacy and Exchange", "children": [{"name": "Diplomatic probes with Europe", "meta": ["Explanation: Mongol attempts to establish political and military alliances with European powers.", "People: Mongol envoys; Pope Innocent IV", "Events: Mongol diplomatic missions to Europe (1240s)", "Dates: 1245–1247", "Ideas: Diplomatic outreach", "Things: Diplomatic letters; envoys"], "id": 190, "depth": 5, "collapsed": true}, {"name": "Exchange of skilled workers", "meta": ["Explanation: The movement of artisans, engineers, and administrators across the empire to share expertise.", "People: Chinese engineers; Persian administrators", "Events: Forced relocation of specialists", "Dates: 1200s–1300s", "Ideas: Knowledge transfer", "Things: Siege engineers; artisans"], "id": 191, "depth": 5, "collapsed": true}, {"name": "Spread of Chinese technology (gunpowder, printing)", "meta": ["Explanation: The transmission of key innovations westward through Mongol-controlled trade routes.", "People: Chinese inventors; Islamic scholars", "Events: Transmission of gunpowder to Middle East/Europe", "Dates: 1200s–1300s", "Ideas: Technological diffusion", "Things: Gunpowder weapons; printing techniques"], "id": 192, "depth": 5, "collapsed": true}], "id": 189, "depth": 4, "collapsed": true}, {"name": "The Plague (Black Death)", "children": [{"name": "Spread via trade routes", "meta": ["Explanation: The transmission of disease along interconnected trade networks linking Afro-Eurasia.", "People: Mongol traders; Genoese merchants", "Events: Siege of Caffa (1346)", "Dates: 1347–1351", "Ideas: Pandemic transmission", "Things: Flea-infested rats; caravan routes"], "id": 194, "depth": 5, "collapsed": true}, {"name": "Massive population contraction", "meta": ["Explanation: A dramatic decline in population due to high mortality rates during the plague.", "People: European and Asian populations", "Events: Black Death mortality crisis", "Dates: 1347–1351", "Ideas: Demographic collapse", "Things: Mass graves; abandoned villages"], "id": 195, "depth": 5, "collapsed": true}, {"name": "Labor shortages in Europe", "meta": ["Explanation: A reduction in workforce that contributed to economic and social changes.", "People: European peasants; landowners", "Events: Post-plague labor shifts", "Dates: mid-1300s", "Ideas: Wage labor rise; decline of serfdom", "Things: Higher wages; labor contracts"], "id": 196, "depth": 5, "collapsed": true}, {"name": "Demise of the Mongol network", "meta": ["Explanation: The weakening of Mongol-controlled systems due to instability and population loss from the plague.", "People: Mongol rulers (fragmented khanates)", "Events: Collapse of unified Mongol control", "Dates: late 1300s", "Ideas: Political fragmentation", "Things: Declining Silk Road traffic"], "id": 197, "depth": 5, "collapsed": true}], "id": 193, "depth": 4, "collapsed": true}, {"name": "Historical Reflections", "children": [{"name": "Mongols as “unifiers” of Eurasia", "meta": ["Explanation: The role of the Mongol Empire in connecting distant regions through trade, communication, and exchange.", "People: Chinggis Khan; Khubilai Khan; Marco Polo", "Events: Pax Mongolica (13th–14th centuries)", "Dates: c. 1200–1350", "Ideas: Eurasian integration; cross-cultural exchange", "Things: Silk Road networks; Yam relay system; caravan routes"], "id": 199, "depth": 5, "collapsed": true}, {"name": "Short-lived cultural impact", "meta": ["Explanation: The limited lasting influence of Mongol culture despite their vast political control.", "People: Khubilai Khan (China); Ghazan Khan (Persia)", "Events: Fall of Yuan Dynasty (1368); Ilkhanate assimilation", "Dates: 1300s", "Ideas: Cultural assimilation into local societies", "Things: Adoption of Chinese bureaucracy; Persian language administration"], "id": 200, "depth": 5, "collapsed": true}, {"name": "Incentive for European maritime exploration", "meta": ["Explanation: The disruption of overland trade routes that encouraged Europeans to seek alternative sea routes to Asia.", "People: Prince Henry the Navigator; Vasco da Gama", "Events: Portuguese exploration of West African coast; voyage to India (1498)", "Dates: 1400s–1498", "Ideas: Search for direct trade routes; bypassing intermediaries", "Things: Caravels; navigational tools (astrolabe, compass)"], "id": 201, "depth": 5, "collapsed": true}], "id": 198, "depth": 4, "collapsed": true}], "id": 184, "depth": 3, "collapsed": true}], "id": 150, "depth": 2, "collapsed": false}], "id": 2, "depth": 1, "collapsed": false}], "id": 1, "depth": 0, "collapsed": false};
+const chapters = [{"id": 3, "part": "Part 1: Diversity and Interaction (1200–1450)", "name": "Chapter 1: Before 1200 — Master Outline with Definitions"}, {"id": 52, "part": "Part 1: Diversity and Interaction (1200–1450)", "name": "Chapter 2: Varieties of Civilizations (1200–1450)"}, {"id": 96, "part": "Part 1: Diversity and Interaction (1200–1450)", "name": "Chapter 3: Connections and Interactions (1200–1450)"}, {"id": 150, "part": "Part 1: Diversity and Interaction (1200–1450)", "name": "Chapter 4: The Mongol Moment and the Re-Making of Eurasia (1200–1450)"}];
+
+const svg = document.getElementById('mindmap');
+const viewport = document.getElementById('viewport');
+const linksLayer = document.getElementById('links');
+const nodesLayer = document.getElementById('nodes');
+const searchInput = document.getElementById('search');
+const chapterFilter = document.getElementById('chapterFilter');
+const detailsTitle = document.getElementById('detailsTitle');
+const detailsPath = document.getElementById('detailsPath');
+const detailsBody = document.getElementById('detailsBody');
+const matchCount = document.getElementById('matchCount');
+
+chapters.forEach(ch => {
+  const opt = document.createElement('option');
+  opt.value = String(ch.id);
+  opt.textContent = ch.name;
+  chapterFilter.appendChild(opt);
+});
+
+const state = {
+  scale: 0.65,
+  x: 90,
+  y: 80,
+  dragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  dragOriginX: 0,
+  dragOriginY: 0,
+  selectedId: null,
+  matchIds: new Set(),
+  activeIds: new Set(),
+  currentRootId: 'all'
+};
+
+function eachNode(node, fn, parent = null) {
+  fn(node, parent);
+  (node.children || []).forEach(child => eachNode(child, fn, node));
+}
+eachNode(fullData, (node, parent) => {
+  node._parent = parent;
+});
+
+function findById(node, id) {
+  if (String(node.id) === String(id)) return node;
+  for (const child of (node.children || [])) {
+    const found = findById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function currentRoot() {
+  if (state.currentRootId === 'all') return fullData;
+  return findById(fullData, state.currentRootId) || fullData;
+}
+
+function visibleChildren(node) {
+  return node.collapsed ? [] : (node.children || []);
+}
+
+function labelWidth(str) {
+  return Math.max(250, str.length * 10.7 + 66);
+}
+
+function collectVisible(node, arr = []) {
+  arr.push(node);
+  visibleChildren(node).forEach(child => collectVisible(child, arr));
+  return arr;
+}
+
+function computeDepthOffsets(root) {
+  const maxByDepth = {};
+  collectVisible(root).forEach(node => {
+    const d = node.depth - root.depth;
+    const w = labelWidth(node.name);
+    maxByDepth[d] = Math.max(maxByDepth[d] || 0, w);
+  });
+  const offsets = {};
+  let acc = 0;
+  Object.keys(maxByDepth).map(Number).sort((a,b)=>a-b).forEach(d => {
+    offsets[d] = acc;
+    acc += maxByDepth[d] + 130;
+  });
+  return offsets;
+}
+
+function layout(root) {
+  const offsets = computeDepthOffsets(root);
+  const nodes = [];
+  let row = 0;
+  const rowGap = 92;
+  const baseDepth = root.depth;
+
+  function dfs(node) {
+    const kids = visibleChildren(node);
+    if (!kids.length) {
+      node._x = offsets[node.depth - baseDepth] || 0;
+      node._y = row * rowGap;
+      row++;
+    } else {
+      const start = row;
+      kids.forEach(dfs);
+      const end = row - 1;
+      node._x = offsets[node.depth - baseDepth] || 0;
+      node._y = ((start + end) / 2) * rowGap;
+    }
+    node._w = labelWidth(node.name);
+    nodes.push(node);
+  }
+  dfs(root);
+  return nodes;
+}
+
+function collectLinks(root, arr = []) {
+  visibleChildren(root).forEach(child => {
+    arr.push({ source: root, target: child });
+    collectLinks(child, arr);
+  });
+  return arr;
+}
+
+function buildPath(node) {
+  const parts = [];
+  let cur = node;
+  while (cur) {
+    parts.push(cur.name);
+    cur = cur._parent;
+  }
+  return parts.reverse();
+}
+
+function pathIdSet(node) {
+  const ids = new Set();
+  let cur = node;
+  while (cur) {
+    ids.add(cur.id);
+    cur = cur._parent;
+  }
+  return ids;
+}
+
+function renderDetails(node) {
+  detailsTitle.textContent = node.name;
+  detailsPath.textContent = buildPath(node).join(' → ');
+  const meta = node.meta || [];
+  if (!meta.length) {
+    detailsBody.innerHTML = `
+      <div class="meta-block">
+        <div class="meta-label">Branch node</div>
+        <div class="meta-value">This node organizes subtopics. Expand it to explore the terms beneath it.</div>
+      </div>
+      <div class="meta-block">
+        <div class="meta-label">Children</div>
+        <div class="meta-value">${(node.children || []).length} subtopic${(node.children || []).length === 1 ? '' : 's'}</div>
+      </div>
+    `;
+    return;
+  }
+  detailsBody.innerHTML = meta.map(item => {
+    const idx = item.indexOf(':');
+    if (idx === -1) {
+      return `<div class="meta-block"><div class="meta-value">${escapeHtml(item)}</div></div>`;
+    }
+    const label = escapeHtml(item.slice(0, idx));
+    const value = escapeHtml(item.slice(idx + 1).trim());
+    return `
+      <div class="meta-block">
+        <div class="meta-label">${label}</div>
+        <div class="meta-value">${value}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function draw() {
+  const root = currentRoot();
+  const nodes = layout(root);
+  const links = collectLinks(root);
+
+  linksLayer.innerHTML = '';
+  nodesLayer.innerHTML = '';
+
+  links.forEach(link => {
+    const sx = link.source._x + link.source._w;
+    const sy = link.source._y;
+    const tx = link.target._x;
+    const ty = link.target._y;
+    const c1 = sx + 120;
+    const c2 = tx - 120;
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', `M ${sx} ${sy} C ${c1} ${sy}, ${c2} ${ty}, ${tx} ${ty}`);
+    p.setAttribute('class', 'link');
+    if (state.activeIds.has(link.source.id) && state.activeIds.has(link.target.id)) {
+      p.classList.add('active');
+    }
+    linksLayer.appendChild(p);
+  });
+
+  nodes.forEach(node => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', `node-group depth-${Math.min(node.depth - root.depth, 5)}`);
+    g.setAttribute('transform', `translate(${node._x}, ${node._y - 26})`);
+    if (state.selectedId === node.id) g.classList.add('selected');
+    if (state.matchIds.has(node.id)) g.classList.add('match');
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'node-box');
+    rect.setAttribute('width', node._w);
+    rect.setAttribute('height', 52);
+    g.appendChild(rect);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('class', 'node-label');
+    text.setAttribute('x', 18);
+    text.setAttribute('y', 27);
+    text.textContent = node.name;
+    g.appendChild(text);
+
+    if ((node.children || []).length) {
+      const cx = node._w - 20;
+      const cy = 26;
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('class', 'toggle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', 11);
+      g.appendChild(circle);
+
+      const h = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      h.setAttribute('class', 'toggle-mark');
+      h.setAttribute('x1', cx - 4);
+      h.setAttribute('y1', cy);
+      h.setAttribute('x2', cx + 4);
+      h.setAttribute('y2', cy);
+      g.appendChild(h);
+
+      if (node.collapsed) {
+        const v = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        v.setAttribute('class', 'toggle-mark');
+        v.setAttribute('x1', cx);
+        v.setAttribute('y1', cy - 4);
+        v.setAttribute('x2', cx);
+        v.setAttribute('y2', cy + 4);
+        g.appendChild(v);
+      }
+    }
+
+    g.addEventListener('click', e => {
+      e.stopPropagation();
+      state.selectedId = node.id;
+      state.activeIds = pathIdSet(node);
+      renderDetails(node);
+      if ((node.children || []).length) node.collapsed = !node.collapsed;
+      draw();
+    });
+
+    nodesLayer.appendChild(g);
+  });
+}
+
+function setCollapsed(node, collapsed) {
+  if (node !== fullData) node.collapsed = collapsed;
+  (node.children || []).forEach(child => setCollapsed(child, collapsed));
+}
+
+function expandAncestors(node) {
+  let cur = node._parent;
+  while (cur) {
+    cur.collapsed = false;
+    cur = cur._parent;
+  }
+}
+
+function updateSearch() {
+  const q = searchInput.value.trim().toLowerCase();
+  state.matchIds = new Set();
+
+  if (!q) {
+    matchCount.textContent = '0 matches';
+    draw();
+    return;
+  }
+
+  const root = currentRoot();
+  const matches = [];
+  eachNode(root, node => {
+    const haystack = [node.name].concat(node.meta || []).join(' ').toLowerCase();
+    if (haystack.includes(q)) {
+      matches.push(node);
+      state.matchIds.add(node.id);
+      expandAncestors(node);
+    }
+  });
+
+  matchCount.textContent = `${matches.length} match${matches.length === 1 ? '' : 'es'}`;
+
+  if (matches.length) {
+    const first = matches[0];
+    state.selectedId = first.id;
+    state.activeIds = pathIdSet(first);
+    renderDetails(first);
+  }
+  draw();
+}
+
+function centerView() {
+  state.scale = 0.65;
+  state.x = 90;
+  state.y = 80;
+  applyTransform();
+}
+
+function applyTransform() {
+  viewport.setAttribute('transform', `translate(${state.x}, ${state.y}) scale(${state.scale})`);
+}
+
+document.getElementById('expandAll').addEventListener('click', () => {
+  setCollapsed(currentRoot(), false);
+  draw();
+});
+
+document.getElementById('collapseAll').addEventListener('click', () => {
+  setCollapsed(currentRoot(), true);
+  currentRoot().collapsed = false;
+  draw();
+});
+
+document.getElementById('centerView').addEventListener('click', centerView);
+document.getElementById('clearSearch').addEventListener('click', () => {
+  searchInput.value = '';
+  updateSearch();
+});
+searchInput.addEventListener('input', updateSearch);
+
+chapterFilter.addEventListener('change', () => {
+  state.currentRootId = chapterFilter.value;
+  state.matchIds = new Set();
+  state.activeIds = new Set();
+  state.selectedId = null;
+  detailsTitle.textContent = 'Nothing selected';
+  detailsPath.textContent = 'Select a node to see its explanation and metadata.';
+  detailsBody.innerHTML = '<div class="meta-block"><div class="meta-label">View changed</div><div class="meta-value">The map is now filtered to the selected chapter.</div></div>';
+  centerView();
+  draw();
+});
+
+svg.addEventListener('mousedown', e => {
+  if (e.target.closest('.node-group')) return;
+  state.dragging = true;
+  svg.classList.add('dragging');
+  state.dragStartX = e.clientX;
+  state.dragStartY = e.clientY;
+  state.dragOriginX = state.x;
+  state.dragOriginY = state.y;
+});
+window.addEventListener('mousemove', e => {
+  if (!state.dragging) return;
+  const dragMultiplier = 1.8;
+  const dx = (e.clientX - state.dragStartX) * dragMultiplier;
+  const dy = (e.clientY - state.dragStartY) * dragMultiplier;
+  state.x = state.dragOriginX + dx;
+  state.y = state.dragOriginY + dy;
+  applyTransform();
+});
+window.addEventListener('mouseup', () => {
+  state.dragging = false;
+  svg.classList.remove('dragging');
+});
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = svg.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const next = Math.min(4.0, Math.max(0.3, state.scale * factor));
+  const worldX = (mx - state.x) / state.scale;
+  const worldY = (my - state.y) / state.scale;
+  state.x = mx - worldX * next;
+  state.y = my - worldY * next;
+  state.scale = next;
+  applyTransform();
+}, { passive: false });
+
+draw();
+applyTransform();
+</script>
+</body>
+</html>
